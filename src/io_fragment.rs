@@ -27,6 +27,11 @@ impl IoFragment {
         }
     }
 
+    /// Gets a pointer to the beginning of the buffer.
+    pub fn get_start(&self) -> *const u8 {
+        self.buf.begin()
+    }
+
     fn get_current(&self) -> Option<*mut u8> {
         self.buf.get_write()
     }

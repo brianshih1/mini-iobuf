@@ -10,7 +10,7 @@ pub struct IoBuf {
     size: usize,
 }
 
-intrusive_adapter!(IoFragmentAdapter = Box<IoFragment>: IoFragment { link: LinkedListLink });
+intrusive_adapter!(pub IoFragmentAdapter = Box<IoFragment>: IoFragment { link: LinkedListLink });
 
 impl IoBuf {
     pub fn new() -> Self {
@@ -65,11 +65,11 @@ impl IoBuf {
         let mut remaining = len;
         let mut ptr = src;
         while remaining > 0 {
-            let allocated_size = self.append_new_fragment(remaining);
-            self.get_last_fragment().append(ptr, allocated_size);
-            ptr = unsafe { ptr.add(allocated_size) };
-            remaining -= allocated_size;
-            self.size += allocated_size;
+            self.append_new_fragment(remaining);
+            let appended_size = self.get_last_fragment().append(ptr, remaining);
+            ptr = unsafe { ptr.add(appended_size) };
+            remaining -= appended_size;
+            self.size += appended_size;
         }
     }
 

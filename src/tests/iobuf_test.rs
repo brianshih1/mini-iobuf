@@ -9,4 +9,8 @@ fn test() {
     let ptr = values.as_ptr();
     let size = values.len();
     iobuf.append(ptr, size);
+    {
+        iobuf.share(0, 50);
+    }
+    iobuf.share(0, 1000);
 }
