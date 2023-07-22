@@ -132,3 +132,5 @@ If `fetch_sub` returns 1, we need to ensure that no other references have access
 The figure above illustrates how we establish the happens-before relationship. Note that all atomic operations (even relaxed ones) have total modification order for that atomic variable. This means that all modifications of the same atomic variable happen in an order that is the same from the perspective of every single thread. This means that if `fetch_sub` returns `1`, it is the last `fetch_sub`.
 
 We use a an `acquire fence` to guarantee that whatever happens after the fence happens after any event before all other `final_sub`s. Since loads or modifications to the `buffer` counts as `any event`, we guarantee that after the fence, no other threads have access to the underlying memory.
+
+Check out the implementation on github [here](https://github.com/brianshih1/mini-iobuf/blob/main/src/temporary_buffer.rs).

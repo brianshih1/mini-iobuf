@@ -70,7 +70,7 @@ pub struct IoFragment {
 
 Let’s look at how we implement `fn append(&mut self, src: *const u8, len: usize) -> ();`
 
-![Screenshot 2023-07-19 at 5.41.58 PM.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/64cc878f-92cd-43af-8899-715264a70c70/Screenshot_2023-07-19_at_5.41.58_PM.png)
+<img src="./assets/iobuf_append.png" width="85%">
 
 The diagram shows an `iobuf` with 2 fragments. The second fragment has `10` available bytes. If we insert `15` bytes into the `iobuf`, it will first fill in the available bytes. Then it will create a new `io_fragment` with the next allocation size and fill the remaining `5` bytes into the next fragment.
 
@@ -125,6 +125,8 @@ pub fn share(&self, pos: usize, len: usize) -> IoBuf {
 ```
 
 In other words, `share` increments the reference count of each of the temporary buffers that it intersects. When the `iobuf` drops, all the reference counts of the temporary buffers drop. Each temporary buffer is responsible for deallocating the memory if the reference count reaches zero.
+
+Check out the implementation of iobuf [here](https://github.com/brianshih1/mini-iobuf/blob/main/src/iobuf.rs).
 
 ### IoIteratorConsumer
 
