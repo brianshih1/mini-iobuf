@@ -193,7 +193,7 @@ fn append_fragment(&amp;mut self, fragment: IoFragment);
 <span class="boring">}</span></code></pre></pre>
 <p><strong>Append</strong></p>
 <p>Let’s look at how we implement <code>fn append(&amp;mut self, src: *const u8, len: usize) -&gt; ();</code></p>
-<p><img src="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/64cc878f-92cd-43af-8899-715264a70c70/Screenshot_2023-07-19_at_5.41.58_PM.png" alt="Screenshot 2023-07-19 at 5.41.58 PM.png" /></p>
+<img src="./assets/iobuf_append.png" width="85%">
 <p>The diagram shows an <code>iobuf</code> with 2 fragments. The second fragment has <code>10</code> available bytes. If we insert <code>15</code> bytes into the <code>iobuf</code>, it will first fill in the available bytes. Then it will create a new <code>io_fragment</code> with the next allocation size and fill the remaining <code>5</code> bytes into the next fragment.</p>
 <p>Computing the next allocation size is based on the <a href="https://github.com/redpanda-data/redpanda/blob/28b5c47fb4d2d23322622e1ba52f973179ba504e/src/v/bytes/details/io_allocation_size.h#L32">iobuf allocation table logic provided by Redpanda</a>. In general, fixed sizing and size capping help reduce memory fragmentation.</p>
 <p>Here is the implementation of <code>append</code>:</p>
@@ -242,6 +242,7 @@ fn append_fragment(&amp;mut self, fragment: IoFragment);
     }
 <span class="boring">}</span></code></pre></pre>
 <p>In other words, <code>share</code> increments the reference count of each of the temporary buffers that it intersects. When the <code>iobuf</code> drops, all the reference counts of the temporary buffers drop. Each temporary buffer is responsible for deallocating the memory if the reference count reaches zero.</p>
+<p>Check out the implementation of iobuf <a href="https://github.com/brianshih1/mini-iobuf/blob/main/src/iobuf.rs">here</a>.</p>
 <h3 id="ioiteratorconsumer"><a class="header" href="#ioiteratorconsumer">IoIteratorConsumer</a></h3>
 <p>To get data out of an <code>iobuf</code>, the best way is to use a consumer iterator. My <code>IoIteratorConsumer</code> implementation is based on Redpanda’s implementation. Check out their source code <a href="https://github.com/redpanda-data/redpanda/blob/28b5c47fb4d2d23322622e1ba52f973179ba504e/src/v/bytes/details/io_iterator_consumer.h#L47">here</a>.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]

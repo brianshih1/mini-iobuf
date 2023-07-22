@@ -252,6 +252,7 @@ struct BufferInternal {
 <img src="./assets/fence.png" width="85%">
 <p>The figure above illustrates how we establish the happens-before relationship. Note that all atomic operations (even relaxed ones) have total modification order for that atomic variable. This means that all modifications of the same atomic variable happen in an order that is the same from the perspective of every single thread. This means that if <code>fetch_sub</code> returns <code>1</code>, it is the last <code>fetch_sub</code>.</p>
 <p>We use a an <code>acquire fence</code> to guarantee that whatever happens after the fence happens after any event before all other <code>final_sub</code>s. Since loads or modifications to the <code>buffer</code> counts as <code>any event</code>, we guarantee that after the fence, no other threads have access to the underlying memory.</p>
+<p>Check out the implementation on github <a href="https://github.com/brianshih1/mini-iobuf/blob/main/src/temporary_buffer.rs">here</a>.</p>
 
                     </main>
 
