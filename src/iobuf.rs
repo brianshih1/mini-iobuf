@@ -1,12 +1,13 @@
-use intrusive_collections::{intrusive_adapter, LinkedList, LinkedListLink};
+use intrusive_collections::{intrusive_adapter, linked_list::Iter, LinkedList, LinkedListLink};
 
 use crate::{
     io_allocation_size::IoAllocationSize, io_fragment::IoFragment,
-    temporary_buffer::TemporaryBuffer,
+    io_iterator_consumer::IoFragmentIter, temporary_buffer::TemporaryBuffer,
 };
 
 pub struct IoBuf {
     frags: LinkedList<IoFragmentAdapter>,
+    // number of bytes the IoBuf contains
     size: usize,
 }
 
@@ -18,6 +19,10 @@ impl IoBuf {
             frags: LinkedList::new(IoFragmentAdapter::new()),
             size: 0,
         }
+    }
+
+    pub fn begin<'a>(&'a self) -> IoFragmentIter<'a> {
+        self.frags.iter()
     }
 
     /// shares the underlying temporary buffers

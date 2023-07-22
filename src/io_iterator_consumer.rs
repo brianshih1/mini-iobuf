@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use intrusive_collections::linked_list::Iter;
 
 use crate::{io_fragment::IoFragment, iobuf::IoFragmentAdapter};
@@ -20,6 +22,17 @@ impl<'a> IoIteratorConsumer<'a> {
             current_frag: fragment,
             frag_index,
         }
+    }
+
+    pub fn consume_to_arr(&mut self, n: usize) -> Vec<u8> {
+        let mut ret = Vec::with_capacity(n);
+        let offset: *mut u8 = ret.as_mut_ptr();
+
+        self.consume(n, |ptr, size| unsafe {
+            std::ptr::copy_nonoverlapping(ptr, offset.add(ret.len()), size);
+        });
+        unsafe { ret.set_len(n) };
+        ret
     }
 
     /// takes a callback, iterate over the fragments and

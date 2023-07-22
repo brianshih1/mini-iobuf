@@ -1,4 +1,4 @@
-use std::alloc::{alloc, Layout};
+use std::alloc::{alloc, dealloc, Layout};
 use std::sync::atomic::fence;
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 use std::{
@@ -7,13 +7,15 @@ use std::{
 };
 
 pub struct TemporaryBuffer {
-    ref_count: NonNull<BufferInternal>,
+    deleter: NonNull<BufferInternal>,
     size: usize,
     buffer: *mut u8,
 }
 
 struct BufferInternal {
-    ref_counter: AtomicUsize,
+    ref_count: AtomicUsize,
+    size: usize,
+    buffer: *mut u8,
 }
 
 impl TemporaryBuffer {
@@ -22,8 +24,10 @@ impl TemporaryBuffer {
         let layout = Layout::array::<u8>(size).unwrap();
         let buffer = unsafe { alloc(layout) };
         TemporaryBuffer {
-            ref_count: NonNull::from(Box::leak(Box::new(BufferInternal {
-                ref_counter: AtomicUsize::new(1),
+            deleter: NonNull::from(Box::leak(Box::new(BufferInternal {
+                ref_count: AtomicUsize::new(1),
+                size,
+                buffer,
             }))),
             size,
             buffer,
@@ -39,23 +43,23 @@ impl TemporaryBuffer {
         self.size
     }
 
-    fn ref_counter(&self) -> &BufferInternal {
-        unsafe { self.ref_count.as_ref() }
+    fn get_deleter(&self) -> &BufferInternal {
+        unsafe { self.deleter.as_ref() }
     }
 
     pub fn get_ref_count(&self) -> usize {
-        self.ref_counter().ref_counter.load(Relaxed)
+        self.get_deleter().ref_count.load(Relaxed)
     }
 
     /// Create a new temporary_buffer referring to the same underlying data.
     /// The underlying deleter will not be destroyed until both the original and the clone have
     /// been destroyed.
     pub fn share(&self) -> TemporaryBuffer {
-        if self.ref_counter().ref_counter.fetch_add(1, Relaxed) > usize::MAX / 2 {
+        if self.get_deleter().ref_count.fetch_add(1, Relaxed) > usize::MAX / 2 {
             std::process::abort();
         }
         TemporaryBuffer {
-            ref_count: self.ref_count,
+            deleter: self.deleter,
             size: self.size,
             buffer: self.buffer,
         }
@@ -65,14 +69,12 @@ impl TemporaryBuffer {
     /// same underlying data.  The underlying data will not be destroyed
     /// until both the original and the clone have been destroyed.
     pub fn share_slice(&self, pos: usize, len: usize) -> TemporaryBuffer {
-        if self.ref_counter().ref_counter.fetch_add(1, Relaxed) > usize::MAX / 2 {
+        if self.get_deleter().ref_count.fetch_add(1, Relaxed) > usize::MAX / 2 {
             std::process::abort();
         }
         // TODO: Validate that pos + len is in bound
         TemporaryBuffer {
-            ref_count: NonNull::from(Box::leak(Box::new(BufferInternal {
-                ref_counter: AtomicUsize::new(1),
-            }))),
+            deleter: self.deleter,
             size: len,
             buffer: unsafe { self.buffer.add(pos) },
         }
@@ -92,7 +94,7 @@ impl TemporaryBuffer {
     /// Gets a writable pointer to the beginning of the buffer.  Use only
     /// when you are certain no user expects the buffer data not to change.
     pub fn get_write(&self) -> Option<*mut u8> {
-        if self.ref_counter().ref_counter.load(Relaxed) == 1 {
+        if self.get_deleter().ref_count.load(Relaxed) == 1 {
             fence(Acquire);
             Some(self.buffer)
         } else {
@@ -108,10 +110,12 @@ impl TemporaryBuffer {
 
 impl Drop for TemporaryBuffer {
     fn drop(&mut self) {
-        if self.ref_counter().ref_counter.fetch_sub(1, Release) == 1 {
+        if self.get_deleter().ref_count.fetch_sub(1, Release) == 1 {
             fence(Acquire);
             unsafe {
-                drop(Box::from_raw(self.ref_count.as_ptr()));
+                let layout = Layout::array::<u8>(self.deleter.as_ref().size).unwrap();
+                dealloc(self.deleter.as_ref().buffer, layout);
+                drop(Box::from_raw(self.deleter.as_ptr()));
             }
         }
     }
