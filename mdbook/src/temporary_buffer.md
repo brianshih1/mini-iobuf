@@ -2,7 +2,7 @@
 
 Before we implement the `iobuf`, we need to first implement its building block, the `Temporary Buffer`.
 
-Temporary Buffer is a memory management abstraction for a contiguous region of memory. What makes temporary buffer different from buffers like `Vec` is that the underlying memory can be shared with another `temporary_buffer`. In other words, it is a buffer with automatic reference count, kind of like an `Arc` in Rust.
+Temporary Buffer is a memory management abstraction for a contiguous region of memory. What makes temporary buffers different from buffers like `Vec` is that the underlying memory can be shared with another `temporary_buffer`. In other words, it is a buffer with an automatic reference count, kind of like an `Arc` in Rust.
 
 My implementation is largely inspired by Seastar’s [implementation](https://github.com/scylladb/seastar/blob/e908cfce2d4488976f3b91906954f435aaa99238/include/seastar/core/temporary_buffer.hh).
 
@@ -18,7 +18,7 @@ let buffer = TemporaryBuffer::new(12);
 
 **Write**
 
-To write into a `TemporaryBuffer`, you call `get_write(&self) -> Option<*mut u8>`. It is dangerous to return a `mutable raw pointer` if there is another reference to the `TemporaryBuffer` as the other buffer may not expect data to change. Therefore, `get_write` would return `None` if there are more than one references to the buffer.
+To write into a `TemporaryBuffer`, you call `get_write(&self) -> Option<*mut u8>`. It is dangerous to return a `mutable raw pointer` if there is another reference to the `TemporaryBuffer` as the other buffer may not expect data to change. Therefore, `get_write` would return `None` if there are more than one reference to the buffer.
 
 ```rust
 let buffer = TemporaryBuffer::new(12);
@@ -131,6 +131,6 @@ If `fetch_sub` returns 1, we need to ensure that no other references have access
 
 The figure above illustrates how we establish the happens-before relationship. Note that all atomic operations (even relaxed ones) have total modification order for that atomic variable. This means that all modifications of the same atomic variable happen in an order that is the same from the perspective of every single thread. This means that if `fetch_sub` returns `1`, it is the last `fetch_sub`.
 
-We use a an `acquire fence` to guarantee that whatever happens after the fence happens after any event before all other `final_sub`s. Since loads or modifications to the `buffer` counts as `any event`, we guarantee that after the fence, no other threads have access to the underlying memory.
+We use an `acquire fence` to guarantee that whatever happens after the fence happens after any event before all other `final_sub`s. Since loads or modifications to the `buffer` count as `any event`, we guarantee that after the fence, no other threads have access to the underlying memory.
 
 Check out the implementation on github [here](https://github.com/brianshih1/mini-iobuf/blob/main/src/temporary_buffer.rs).

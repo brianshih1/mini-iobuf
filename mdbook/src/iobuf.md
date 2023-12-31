@@ -46,7 +46,7 @@ As we can see from the definition of `IoBuf`, it’s pretty much just a linked l
 
 Similar to Redpanda’s implementation, I also used an intrusive linked list from the [intrusive_collections trait](https://amanieu.github.io/intrusive-rs/intrusive_collections/linked_list/index.html).
 
-The main difference between an intrusive collection and a normal collection is that intrusive collections don’t allocate memory themselves. This means that the `next` and `prev` pointers directly live inside the nodes. Intrusive collections are good because it eliminates dynamic memory allocation, which may cause the memory pools to be fragmented.
+The main difference between an intrusive collection and a normal collection is that intrusive collections don’t allocate memory themselves. This means that the `next` and `prev` pointers directly live inside the nodes. Intrusive collections are good because they eliminate dynamic memory allocation, which may cause the memory pools to be fragmented.
 
 To work with the intrusive linked list, I just needed to use the `intrusive_adapter` macro like this:
 
@@ -175,4 +175,4 @@ pub fn consume<T>(&mut self, n: usize, consumer: T)
     }
 ```
 
-The algorithm basically iterates over the fragments and calling callbacks with the start pointer and the size in that fragment to consume. Once the number of elements that have been consumed reaches n, the iterator stops.
+The algorithm iterates over the fragments and calls callbacks with the start pointer and the size of that fragment to consume. Once the number of elements that have been consumed reaches n, the iterator stops.
