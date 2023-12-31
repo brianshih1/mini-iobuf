@@ -1,7 +1,6 @@
 # Summary
 
 [Preface](./preface.md)
-[Design Goals of iobuf](./iobuf_design_goals.md)
 
 ---
 

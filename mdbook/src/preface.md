@@ -1,11 +1,14 @@
 # Motivation
 
-I recently came across the [thread-per-core (TpC) architecture](https://www.datadoghq.com/blog/engineering/introducing-glommio/). TpC is an architecture in which each application thread is pinned to a specific CPU and uses message passing instead of message sharing to share data. This architecture removes the need for expensive synchronization mechanisms such as locks and eliminates costly context switches.
+In this blog, we will reimplement Redpanda's `iobuf` library as introduced in their [blog post](https://redpanda.com/blog/tpc-buffers).
 
-I had some questions about memory management in TpC. If a core wants to share data with another core, does the source core need to copy data to the destination core each time? Isn’t that expensive?
+To understand `iobuf`, we need to first understand Redpanda's threading and memory model. Redpanda uses a [thread-per-core (TpC) architecture](https://www.datadoghq.com/blog/engineering/introducing-glommio/). TpC is an programming model that address the two shortcomings of threaded programming:
 
-This [engineering blog](https://redpanda.com/blog/tpc-buffers) written by Redpanda answered my question. In the blog, Alexander Gallego talks about buffer management in a TpC environment. He introduced `iobuf`, Redpanda’s 0-copy buffer management for TpC which allows cores to share data without incurring a copy overhead.
+- Threads executing on the same data requires synchronization mechanisms like locks, which are expensive.
+- Context switching is required when a thread suspends itself and lets another thread run. Context switching is expensive.
 
-To understand `iobuf` better, I studied `iobuf`'s source code and built a toy version of it in Rust. Full source code for my toy implementation, `mini-iobuf`, is available [here](https://github.com/brianshih1/mini-iobuf).
+In TpC, each application thread is pinned to a CPU. Since the OS cannot move the threads around, there are no context switches. Furthermore, under TpC each thread relies on message passing instead of shared memory to share data. This elimitates synchronization overheads from locks. To learn more about TpC, check out [this article by Seastar](https://seastar.io/shared-nothing/) or this [blog by Glommio](https://www.datadoghq.com/blog/engineering/introducing-glommio/).
 
-Also let me preface this by saying that I am a novice in the world of systems programming. So please let me know if I’m making any incorrect statements!
+Under [Seastar](https://seastar.io/), Redpanda's TpC framework, the full memory of the computer is split evenly across the cores during system bootup. As stated in Redpanda's [blog](https://redpanda.com/blog/tpc-buffers), "memory allocated on core-0 [core-N], *must* be deallocated on core-0 [core-N]. However, there is no way to guarantee that a Java or Go client connecting to Redpanda will actually communicate with the exact core that owns the data". Therefore, Redpanda created `iobuf`, "a ref-counted, fragmented-buffer-chain with deferred deletes that allows Redpanda to simply share a view of a remote core’s parsed messages as the fragments come in, without incurring a copy overhead". In other words, `iobuf` is a way for Redpanda to share data across cores cheaply and deallocate the data in the core that owns the data when no cores need that data.
+
+Now, let's look at how it works under the hood by examining my toy implementation!
