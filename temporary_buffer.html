@@ -144,7 +144,7 @@
                     <main>
                         <h1 id="temporary-buffer"><a class="header" href="#temporary-buffer">Temporary Buffer</a></h1>
 <p>Before we implement the <code>iobuf</code>, we need to first implement its building block, the <code>Temporary Buffer</code>.</p>
-<p>Temporary Buffer is a memory management abstraction for a contiguous region of memory. What makes temporary buffer different from buffers like <code>Vec</code> is that the underlying memory can be shared with another <code>temporary_buffer</code>. In other words, it is a buffer with automatic reference count, kind of like an <code>Arc</code> in Rust.</p>
+<p>Temporary Buffer is a memory management abstraction for a contiguous region of memory. What makes temporary buffers different from buffers like <code>Vec</code> is that the underlying memory can be shared with another <code>temporary_buffer</code>. In other words, it is a buffer with an automatic reference count, kind of like an <code>Arc</code> in Rust.</p>
 <p>My implementation is largely inspired by Seastar’s <a href="https://github.com/scylladb/seastar/blob/e908cfce2d4488976f3b91906954f435aaa99238/include/seastar/core/temporary_buffer.hh">implementation</a>.</p>
 <h2 id="api"><a class="header" href="#api">API</a></h2>
 <p><strong>Constructor</strong></p>
@@ -154,7 +154,7 @@
 </span>let buffer = TemporaryBuffer::new(12);
 <span class="boring">}</span></code></pre></pre>
 <p><strong>Write</strong></p>
-<p>To write into a <code>TemporaryBuffer</code>, you call <code>get_write(&amp;self) -&gt; Option&lt;*mut u8&gt;</code>. It is dangerous to return a <code>mutable raw pointer</code> if there is another reference to the <code>TemporaryBuffer</code> as the other buffer may not expect data to change. Therefore, <code>get_write</code> would return <code>None</code> if there are more than one references to the buffer.</p>
+<p>To write into a <code>TemporaryBuffer</code>, you call <code>get_write(&amp;self) -&gt; Option&lt;*mut u8&gt;</code>. It is dangerous to return a <code>mutable raw pointer</code> if there is another reference to the <code>TemporaryBuffer</code> as the other buffer may not expect data to change. Therefore, <code>get_write</code> would return <code>None</code> if there are more than one reference to the buffer.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>let buffer = TemporaryBuffer::new(12);
@@ -251,7 +251,7 @@ struct BufferInternal {
 <p>If <code>fetch_sub</code> returns 1, we need to ensure that no other references have access to the underlying memory. Note that this isn’t trivial as the <code>buffer</code> is not part of the <code>atomic</code> ref_count. To guarantee that any non-atomic loads and stores to buffer occur before the final <code>fetch_sub</code>, we need to establish a <code>happens-before relationship</code> between the final <code>fetch_sub</code> and all other <code>fetch_subs</code>.</p>
 <img src="./assets/fence.png" width="85%">
 <p>The figure above illustrates how we establish the happens-before relationship. Note that all atomic operations (even relaxed ones) have total modification order for that atomic variable. This means that all modifications of the same atomic variable happen in an order that is the same from the perspective of every single thread. This means that if <code>fetch_sub</code> returns <code>1</code>, it is the last <code>fetch_sub</code>.</p>
-<p>We use a an <code>acquire fence</code> to guarantee that whatever happens after the fence happens after any event before all other <code>final_sub</code>s. Since loads or modifications to the <code>buffer</code> counts as <code>any event</code>, we guarantee that after the fence, no other threads have access to the underlying memory.</p>
+<p>We use an <code>acquire fence</code> to guarantee that whatever happens after the fence happens after any event before all other <code>final_sub</code>s. Since loads or modifications to the <code>buffer</code> count as <code>any event</code>, we guarantee that after the fence, no other threads have access to the underlying memory.</p>
 <p>Check out the implementation on github <a href="https://github.com/brianshih1/mini-iobuf/blob/main/src/temporary_buffer.rs">here</a>.</p>
 
                     </main>

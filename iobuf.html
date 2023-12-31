@@ -175,7 +175,7 @@ fn append_fragment(&amp;mut self, fragment: IoFragment);
 <span class="boring">}</span></code></pre></pre>
 <p>As we can see from the definition of <code>IoBuf</code>, it’s pretty much just a linked list of <code>IoFragment</code> nodes. The <code>IoBuf</code> itself doesn’t store any data, it just holds pointers to <code>temporary buffer</code> instances, which actually hold the data.</p>
 <p>Similar to Redpanda’s implementation, I also used an intrusive linked list from the <a href="https://amanieu.github.io/intrusive-rs/intrusive_collections/linked_list/index.html">intrusive_collections trait</a>.</p>
-<p>The main difference between an intrusive collection and a normal collection is that intrusive collections don’t allocate memory themselves. This means that the <code>next</code> and <code>prev</code> pointers directly live inside the nodes. Intrusive collections are good because it eliminates dynamic memory allocation, which may cause the memory pools to be fragmented.</p>
+<p>The main difference between an intrusive collection and a normal collection is that intrusive collections don’t allocate memory themselves. This means that the <code>next</code> and <code>prev</code> pointers directly live inside the nodes. Intrusive collections are good because they eliminate dynamic memory allocation, which may cause the memory pools to be fragmented.</p>
 <p>To work with the intrusive linked list, I just needed to use the <code>intrusive_adapter</code> macro like this:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -286,7 +286,7 @@ assert_eq!(values2, arr2);
         }
     }
 <span class="boring">}</span></code></pre></pre>
-<p>The algorithm basically iterates over the fragments and calling callbacks with the start pointer and the size in that fragment to consume. Once the number of elements that have been consumed reaches n, the iterator stops.</p>
+<p>The algorithm iterates over the fragments and calls callbacks with the start pointer and the size of that fragment to consume. Once the number of elements that have been consumed reaches n, the iterator stops.</p>
 
                     </main>
 

@@ -145,17 +145,17 @@
                     <main>
                         <h1 id="motivation"><a class="header" href="#motivation">Motivation</a></h1>
 <p>In this blog, we will reimplement Redpanda's <code>iobuf</code> library as introduced in their <a href="https://redpanda.com/blog/tpc-buffers">blog post</a>.</p>
-<p>To understand <code>iobuf</code>, we need to first understand Redpanda's threading and memory model. Redpanda uses a <a href="https://www.datadoghq.com/blog/engineering/introducing-glommio/">thread-per-core (TpC) architecture</a>. TpC is an programming model that address the two shortcomings of threaded programming:</p>
+<p>To understand <code>iobuf</code>, we need to first understand Redpanda's threading and memory model. Redpanda uses a <a href="https://www.datadoghq.com/blog/engineering/introducing-glommio/">thread-per-core (TpC) architecture</a>. TpC is a programming model that addresses the two shortcomings of threaded programming:</p>
 <ul>
-<li>Threads executing on the same data requires synchronization mechanisms like locks, which are expensive.</li>
+<li>Threads executing on the same data require synchronization mechanisms like locks, which are expensive.</li>
 <li>Context switching is required when a thread suspends itself and lets another thread run. Context switching is expensive.</li>
 </ul>
-<p>In TpC, each application thread is pinned to a CPU. Since the OS cannot move the threads around, there are no context switches. Furthermore, under TpC each thread relies on message passing instead of shared memory to share data. This elimitates synchronization overheads from locks. To learn more about TpC, check out <a href="https://seastar.io/shared-nothing/">this article by Seastar</a> or this <a href="https://www.datadoghq.com/blog/engineering/introducing-glommio/">blog by Glommio</a>.</p>
-<p>Under <a href="https://seastar.io/">Seastar</a>, Redpanda's TpC framework, the full memory of the computer is split evenly across the cores during system bootup. As stated in Redpanda's <a href="https://redpanda.com/blog/tpc-buffers">blog</a>, &quot;memory allocated on core-0 [core-N], <em>must</em> be deallocated on core-0 [core-N]. However, there is no way to guarantee that a Java or Go client connecting to Redpanda will actually communicate with the exact core that owns the data&quot;. Therefore, Redpanda created <code>iobuf</code>, &quot;a ref-counted, fragmented-buffer-chain with deferred deletes that allows Redpanda to simply share a view of a remote core’s parsed messages as the fragments come in, without incurring a copy overhead&quot;. In other words, <code>iobuf</code> is a way for Redpanda to share data across cores cheaply and deallocate the data in the core that owns the data when no cores need that data.</p>
+<p>In TpC, each application thread is pinned to a CPU. Since the OS cannot move the threads around, there are no context switches. Furthermore, under TpC each thread relies on message passing instead of shared memory to share data. This eliminates synchronization overheads from locks. To learn more about TpC, check out <a href="https://seastar.io/shared-nothing/">this article by Seastar</a> or this <a href="https://www.datadoghq.com/blog/engineering/introducing-glommio/">blog by Glommio</a>.</p>
+<p>Under <a href="https://seastar.io/">Seastar</a>, Redpanda's TpC framework, the full memory of the computer is split evenly across the cores during system bootup. As stated in Redpanda's <a href="https://redpanda.com/blog/tpc-buffers">blog</a>, &quot;memory allocated on core-0 [core-N], <em>must</em> be deallocated on core-0 [core-N]. However, there is no way to guarantee that a Java or Go client connecting to Redpanda will communicate with the exact core that owns the data&quot;. Therefore, Redpanda created <code>iobuf</code>, &quot;a ref-counted, fragmented-buffer-chain with deferred deletes that allows Redpanda to simply share a view of a remote core’s parsed messages as the fragments come in, without incurring a copy overhead&quot;. In other words, <code>iobuf</code> is a way for Redpanda to share data across cores cheaply and deallocate the data in the core that owns the data when no cores need that data.</p>
 <p>Now, let's look at how it works under the hood by examining my toy implementation!</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="temporary-buffer"><a class="header" href="#temporary-buffer">Temporary Buffer</a></h1>
 <p>Before we implement the <code>iobuf</code>, we need to first implement its building block, the <code>Temporary Buffer</code>.</p>
-<p>Temporary Buffer is a memory management abstraction for a contiguous region of memory. What makes temporary buffer different from buffers like <code>Vec</code> is that the underlying memory can be shared with another <code>temporary_buffer</code>. In other words, it is a buffer with automatic reference count, kind of like an <code>Arc</code> in Rust.</p>
+<p>Temporary Buffer is a memory management abstraction for a contiguous region of memory. What makes temporary buffers different from buffers like <code>Vec</code> is that the underlying memory can be shared with another <code>temporary_buffer</code>. In other words, it is a buffer with an automatic reference count, kind of like an <code>Arc</code> in Rust.</p>
 <p>My implementation is largely inspired by Seastar’s <a href="https://github.com/scylladb/seastar/blob/e908cfce2d4488976f3b91906954f435aaa99238/include/seastar/core/temporary_buffer.hh">implementation</a>.</p>
 <h2 id="api"><a class="header" href="#api">API</a></h2>
 <p><strong>Constructor</strong></p>
@@ -165,7 +165,7 @@
 </span>let buffer = TemporaryBuffer::new(12);
 <span class="boring">}</span></code></pre></pre>
 <p><strong>Write</strong></p>
-<p>To write into a <code>TemporaryBuffer</code>, you call <code>get_write(&amp;self) -&gt; Option&lt;*mut u8&gt;</code>. It is dangerous to return a <code>mutable raw pointer</code> if there is another reference to the <code>TemporaryBuffer</code> as the other buffer may not expect data to change. Therefore, <code>get_write</code> would return <code>None</code> if there are more than one references to the buffer.</p>
+<p>To write into a <code>TemporaryBuffer</code>, you call <code>get_write(&amp;self) -&gt; Option&lt;*mut u8&gt;</code>. It is dangerous to return a <code>mutable raw pointer</code> if there is another reference to the <code>TemporaryBuffer</code> as the other buffer may not expect data to change. Therefore, <code>get_write</code> would return <code>None</code> if there are more than one reference to the buffer.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>let buffer = TemporaryBuffer::new(12);
@@ -262,7 +262,7 @@ struct BufferInternal {
 <p>If <code>fetch_sub</code> returns 1, we need to ensure that no other references have access to the underlying memory. Note that this isn’t trivial as the <code>buffer</code> is not part of the <code>atomic</code> ref_count. To guarantee that any non-atomic loads and stores to buffer occur before the final <code>fetch_sub</code>, we need to establish a <code>happens-before relationship</code> between the final <code>fetch_sub</code> and all other <code>fetch_subs</code>.</p>
 <img src="./assets/fence.png" width="85%">
 <p>The figure above illustrates how we establish the happens-before relationship. Note that all atomic operations (even relaxed ones) have total modification order for that atomic variable. This means that all modifications of the same atomic variable happen in an order that is the same from the perspective of every single thread. This means that if <code>fetch_sub</code> returns <code>1</code>, it is the last <code>fetch_sub</code>.</p>
-<p>We use a an <code>acquire fence</code> to guarantee that whatever happens after the fence happens after any event before all other <code>final_sub</code>s. Since loads or modifications to the <code>buffer</code> counts as <code>any event</code>, we guarantee that after the fence, no other threads have access to the underlying memory.</p>
+<p>We use an <code>acquire fence</code> to guarantee that whatever happens after the fence happens after any event before all other <code>final_sub</code>s. Since loads or modifications to the <code>buffer</code> count as <code>any event</code>, we guarantee that after the fence, no other threads have access to the underlying memory.</p>
 <p>Check out the implementation on github <a href="https://github.com/brianshih1/mini-iobuf/blob/main/src/temporary_buffer.rs">here</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="iobuf"><a class="header" href="#iobuf">IoBuf</a></h1>
 <p>My toy <code>iobuf</code> implementation is based on <code>Redpanda</code>'s <code>iobuf</code> <a href="https://github.com/redpanda-data/redpanda/blob/28b5c47fb4d2d23322622e1ba52f973179ba504e/src/v/bytes/iobuf.h#L31">implementation</a>.</p>
@@ -297,7 +297,7 @@ fn append_fragment(&amp;mut self, fragment: IoFragment);
 <span class="boring">}</span></code></pre></pre>
 <p>As we can see from the definition of <code>IoBuf</code>, it’s pretty much just a linked list of <code>IoFragment</code> nodes. The <code>IoBuf</code> itself doesn’t store any data, it just holds pointers to <code>temporary buffer</code> instances, which actually hold the data.</p>
 <p>Similar to Redpanda’s implementation, I also used an intrusive linked list from the <a href="https://amanieu.github.io/intrusive-rs/intrusive_collections/linked_list/index.html">intrusive_collections trait</a>.</p>
-<p>The main difference between an intrusive collection and a normal collection is that intrusive collections don’t allocate memory themselves. This means that the <code>next</code> and <code>prev</code> pointers directly live inside the nodes. Intrusive collections are good because it eliminates dynamic memory allocation, which may cause the memory pools to be fragmented.</p>
+<p>The main difference between an intrusive collection and a normal collection is that intrusive collections don’t allocate memory themselves. This means that the <code>next</code> and <code>prev</code> pointers directly live inside the nodes. Intrusive collections are good because they eliminate dynamic memory allocation, which may cause the memory pools to be fragmented.</p>
 <p>To work with the intrusive linked list, I just needed to use the <code>intrusive_adapter</code> macro like this:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -408,7 +408,7 @@ assert_eq!(values2, arr2);
         }
     }
 <span class="boring">}</span></code></pre></pre>
-<p>The algorithm basically iterates over the fragments and calling callbacks with the start pointer and the size in that fragment to consume. Once the number of elements that have been consumed reaches n, the iterator stops.</p>
+<p>The algorithm iterates over the fragments and calls callbacks with the start pointer and the size of that fragment to consume. Once the number of elements that have been consumed reaches n, the iterator stops.</p>
 
                     </main>
 
