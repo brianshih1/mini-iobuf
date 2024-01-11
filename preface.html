@@ -144,6 +144,7 @@
                     <main>
                         <h1 id="motivation"><a class="header" href="#motivation">Motivation</a></h1>
 <p>In this blog, we will reimplement Redpanda's <code>iobuf</code> library as introduced in their <a href="https://redpanda.com/blog/tpc-buffers">blog post</a>.</p>
+<p>The full source code is available <a href="https://github.com/brianshih1/mini-iobuf">here</a>.</p>
 <p>To understand <code>iobuf</code>, we need to first understand Redpanda's threading and memory model. Redpanda uses a <a href="https://www.datadoghq.com/blog/engineering/introducing-glommio/">thread-per-core (TpC) architecture</a>. TpC is a programming model that addresses the two shortcomings of threaded programming:</p>
 <ul>
 <li>Threads executing on the same data require synchronization mechanisms like locks, which are expensive.</li>
